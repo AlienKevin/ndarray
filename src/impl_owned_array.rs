@@ -71,7 +71,7 @@ where
 
 impl<A, D> Array<A, D>
 where
-    A: bytemuck::Pod,
+    A: bytemuck::Pod + std::fmt::Debug,
     D: Dimension,
 {
     pub fn into_wgpu(self, wgpu_device: &WgpuDevice) -> WgpuArray<A, D> {

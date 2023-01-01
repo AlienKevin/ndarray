@@ -17,7 +17,7 @@ impl WgpuDevice {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::MAPPABLE_PRIMARY_BUFFERS,
+                    features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -41,23 +41,31 @@ impl WgpuDevice {
                 contents: bytemuck::cast_slice(slice),
                 usage: wgpu::BufferUsages::STORAGE
                     | wgpu::BufferUsages::COPY_DST
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::MAP_READ,
+                    | wgpu::BufferUsages::COPY_SRC,
             });
 
         storage_buffer
     }
+
     pub fn create_storage_buffer_sized(&self, size: u64) -> wgpu::Buffer {
         let storage_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Storage Buffer"),
             size,
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC
-                | wgpu::BufferUsages::MAP_READ,
+                | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
         storage_buffer
+    }
+
+    pub fn create_staging_buffer(&self, size: u64) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
     }
 }
