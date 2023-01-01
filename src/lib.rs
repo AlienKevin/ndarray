@@ -204,10 +204,13 @@ mod stacking;
 mod low_level_util;
 #[macro_use]
 mod zip;
+mod accelerators;
 
 mod dimension;
 
 pub use crate::zip::{FoldWhile, IntoNdProducer, NdProducer, Zip};
+
+pub use crate::accelerators::WgpuDevice;
 
 pub use crate::layout::Layout;
 
@@ -1420,6 +1423,10 @@ pub type RawArrayViewMut<A, D> = ArrayBase<RawViewRepr<*mut A>, D>;
 
 pub use data_repr::OwnedRepr;
 
+/// An array that is stored on a WGPU device.
+///
+pub type WgpuArray<'a, A, D> = ArrayBase<WgpuRepr<'a, A>, D>;
+
 /// ArcArray's representation.
 ///
 /// *Don’t use this type directly—use the type alias
@@ -1496,6 +1503,50 @@ impl<'a, A> CowRepr<'a, A> {
     }
 }
 
+/// WgpuArray's representation.
+///
+/// *Don't use this type directly—use the type alias
+/// [`WgpuArray`](type.WgpuArray.html) for the array type!*
+pub struct WgpuRepr<'a, A> {
+    wgpu_device: &'a WgpuDevice,
+    storage_buffer: wgpu::Buffer,
+    len: usize,
+    life: PhantomData<A>,
+}
+
+impl<'a, A: bytemuck::Pod> WgpuRepr<'a, A> {
+    pub fn new(slice: &[A], wgpu_device: &'a WgpuDevice) -> Self {
+        let storage_buffer = wgpu_device.create_storage_buffer(slice);
+        WgpuRepr {
+            wgpu_device,
+            storage_buffer,
+            len: slice.len(),
+            life: PhantomData,
+        }
+    }
+}
+
+impl <'a, A> Clone for WgpuRepr<'a, A> {
+    fn clone(&self) -> Self {
+        let slice_size = self.len * std::mem::size_of::<A>();
+        let size = slice_size as u64;
+
+        let storage_buffer = self.wgpu_device.create_storage_buffer_sized(size);
+        let mut encoder =
+        self.wgpu_device.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        encoder.copy_buffer_to_buffer(&self.storage_buffer, 0, &storage_buffer, 0, size); 
+
+        self.wgpu_device.queue.submit(Some(encoder.finish()));
+        WgpuRepr {
+            wgpu_device: self.wgpu_device,
+            storage_buffer,
+            len: self.len,
+            life: PhantomData
+        }
+    }
+}
+
 // NOTE: The order of modules decides in which order methods on the type ArrayBase
 // (mainly mentioning that as the most relevant type) show up in the documentation.
 // Consider the doc effect of ordering modules here.
@@ -1507,6 +1558,7 @@ mod impl_constructors;
 mod impl_methods;
 mod impl_owned_array;
 mod impl_special_element_types;
+mod impl_wgpu_array;
 
 /// Private Methods
 impl<A, S, D> ArrayBase<S, D>
@@ -1584,6 +1636,7 @@ mod numeric;
 pub mod linalg;
 
 mod impl_ops;
+mod impl_wgpu_ops;
 pub use crate::impl_ops::ScalarOperand;
 
 #[cfg(any(feature = "approx", feature = "approx-0_5"))]

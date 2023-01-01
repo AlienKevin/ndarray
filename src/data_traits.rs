@@ -17,7 +17,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use crate::{
-    ArcArray, Array, ArrayBase, CowRepr, Dimension, OwnedArcRepr, OwnedRepr, RawViewRepr, ViewRepr,
+    ArcArray, Array, ArrayBase, CowRepr, Dimension, OwnedArcRepr, OwnedRepr, RawViewRepr, ViewRepr, WgpuRepr,
 };
 
 /// Array representation trait.
@@ -765,4 +765,18 @@ impl<'a, A: 'a, B: 'a> RawDataSubst<B> for CowRepr<'a, A> {
             CowRepr::Owned(owned) => CowRepr::Owned(owned.data_subst()),
         }
     }
+}
+
+unsafe impl<A> RawData for WgpuRepr<'_, A> {
+    type Elem = A;
+    
+    fn _is_pointer_inbounds(&self, _self_ptr: *const Self::Elem) -> bool {
+        true
+    }
+
+    fn _data_slice(&self) -> Option<&[Self::Elem]> {
+        None
+    }
+    
+    private_impl! {}
 }

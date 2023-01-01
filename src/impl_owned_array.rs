@@ -5,6 +5,7 @@ use std::mem::MaybeUninit;
 
 use rawpointer::PointerExt;
 
+use crate::{WgpuArray, WgpuDevice, WgpuRepr};
 use crate::imp_prelude::*;
 
 use crate::dimension;
@@ -65,6 +66,24 @@ where
     /// of the array (`.iter()` order) and of the returned vector will be the same.
     pub fn into_raw_vec(self) -> Vec<A> {
         self.data.into_vec()
+    }
+}
+
+impl<A, D> Array<A, D>
+where
+    A: bytemuck::Pod,
+    D: Dimension,
+{
+    pub fn into_wgpu(self, wgpu_device: &WgpuDevice) -> WgpuArray<A, D> {
+        let slice = self.data.as_slice();
+
+        let data: WgpuRepr<A> = WgpuRepr::new(slice, wgpu_device);
+        ArrayBase {
+            data,
+            ptr: std::ptr::NonNull::dangling(), // Hack. There is nothing to point to
+            dim: self.dim,
+            strides: self.strides,
+        }
     }
 }
 

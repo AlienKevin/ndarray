@@ -46,6 +46,12 @@ matrixmultiply = { version = "0.3.2", default-features = false, features=["cgemm
 serde = { version = "1.0", optional = true, default-features = false, features = ["alloc"] }
 rawpointer = { version = "0.2" }
 
+# WebGPU accelerator
+futures-intrusive = "0.5.0"
+wgpu = { version = "0.14.2" }
+bytemuck = { version = "1.7" }
+futures = { version = "0.3" }
+
 [dev-dependencies]
 defmac = "0.2"
 quickcheck = { version = "1.0", default-features = false }
@@ -78,6 +84,7 @@ matrixmultiply-threading = ["matrixmultiply/threading"]
 debug = true
 
 [workspace]
+resolver = "2"
 members = ["ndarray-rand", "xtest-serialization", "xtest-blas"]
 exclude = ["xtest-numeric"]
 
