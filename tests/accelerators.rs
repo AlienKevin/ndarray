@@ -27,8 +27,17 @@ fn test_wgpu_2() {
     let d = futures::executor::block_on(WgpuDevice::new()).unwrap();
     let a_cpu = Array::range(0., 10., 1.0).into_shape((2, 5)).unwrap();
 
-    let a_gpu = a_cpu.clone().into_wgpu(&d);    
+    let a_gpu = a_cpu.clone().into_wgpu(&d);
     let a_t_gpu = a_gpu.reversed_axes();
-    let a_t_cpu = a_t_gpu.into_cpu();
+    let a_t_cpu = a_t_gpu.clone().into_cpu();
     assert_eq!(a_t_cpu, a_cpu.reversed_axes());
+
+    let b_cpu = Array::range(9., -1.0, -1.0).into_shape((2, 5)).unwrap();
+    let b_gpu = b_cpu.clone().into_wgpu(&d).reversed_axes();
+    let c_cpu = Array::from_elem((5, 2), 9.0);
+
+    dbg!(&a_t_cpu);
+    dbg!(&b_cpu);
+    assert_eq!(a_t_cpu + b_cpu.reversed_axes(), c_cpu);
+    assert_eq!((a_t_gpu + b_gpu).into_cpu(), c_cpu);
 }
