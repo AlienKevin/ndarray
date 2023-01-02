@@ -47,9 +47,10 @@ serde = { version = "1.0", optional = true, default-features = false, features =
 rawpointer = { version = "0.2" }
 
 # WebGPU accelerator
+env_logger = "0.10.0"
 futures-intrusive = "0.5.0"
 wgpu = { version = "0.14.2" }
-bytemuck = { version = "1.7" }
+bytemuck = { version = "1.12.3" }
 futures = { version = "0.3" }
 
 [dev-dependencies]

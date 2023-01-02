@@ -1,6 +1,7 @@
 use crate::Dimension;
 use crate::WgpuArray;
 use crate::WgpuRepr;
+use crate::DimMax;
 
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -15,29 +16,44 @@ where
     D: Dimension,
 {
     type Output = WgpuArray<'d, A, D>;
-    fn $mth(self, rhs: WgpuArray<A, D>) -> Self::Output
+    fn $mth(self, rhs: WgpuArray<'d, A, D>) -> Self::Output
     {
         self.$mth(&rhs)
     }
 }
 
-impl<'a, 'd,  A, D> $trt<WgpuArray<'_, A, D>> for &'a WgpuArray<'d, A, D>
+impl<'a, 'd, A, D, E> $trt<&WgpuArray<'_, A, E>> for WgpuArray<'d, A, D>
 where
     A: bytemuck::Pod + std::fmt::Debug + Default,
-    D: Dimension,
+    D: Dimension + DimMax<E>,
+    E: Dimension,
 {
-    type Output = WgpuArray<'d, A, D>;
-    fn $mth(self, rhs: WgpuArray<A,D>) -> Self::Output
+    type Output = WgpuArray<'d, A, <D as DimMax<E>>::Output>;
+    fn $mth(self, rhs: &WgpuArray<A,E>) -> Self::Output
     {
+        let (lhs_view, rhs_view) = self.broadcast_with(&rhs).unwrap();
+
         let cs_module =
             self.data
                 .wgpu_device
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!($shader)))
+                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&include_str!($shader).replace("$len", &lhs_view.dim.ndim().to_string())))
                 });
-        let storage_buffer = self.data.wgpu_device.create_storage_buffer(vec![A::default(); self.data.len].as_slice());
+        
+        dbg!(lhs_view.dim());
+        dbg!(lhs_view.strides());
+        dbg!(lhs_view.len());
+
+        dbg!(rhs_view.dim());
+        dbg!(rhs_view.strides());
+        dbg!(rhs_view.len());
+        
+        let dim = self.data.wgpu_device.create_storage_buffer(lhs_view.dim.slice());
+        let lhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(lhs_view.strides.slice());
+        let rhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(rhs_view.strides.slice());
+        let result_buffer = self.data.wgpu_device.create_storage_buffer(vec![A::default(); lhs_view.len()].as_slice());
         let compute_pipeline =
             self
                 .data
@@ -49,6 +65,7 @@ where
                     module: &cs_module,
                     entry_point: "main",
                 });
+        
         let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
         let bind_group = self
             .data
@@ -60,18 +77,31 @@ where
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: self.data.storage_buffer.as_entire_binding(),
+                        resource: dim.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: rhs.data.storage_buffer.as_entire_binding(),
+                        resource: lhs_strides_buffer.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: storage_buffer.as_entire_binding(),
+                        resource: self.data.storage_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: rhs_strides_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: rhs.data.storage_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: result_buffer.as_entire_binding(),
                     },
                 ],
             });
+        
         let mut encoder = self
             .data
             .wgpu_device
@@ -83,193 +113,23 @@ where
             cpass.set_pipeline(&compute_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
             cpass.insert_debug_marker($doc);
-            cpass.dispatch_workgroups(self.data.len as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+            cpass.dispatch_workgroups(lhs_view.len() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
         }
-
 
         // Submits command encoder for processing
         self.data.wgpu_device.queue.submit(Some(encoder.finish()));
         let data: WgpuRepr<A> = WgpuRepr {
             wgpu_device: self.data.wgpu_device,
-            storage_buffer,
-            len: self.data.len,
+            storage_buffer: result_buffer,
+            len: lhs_view.len(),
             life: PhantomData
         };
+        let strides = lhs_view.dim.default_strides();
         let array = WgpuArray {
             data,
             ptr: NonNull::dangling(), // Hack. There is nothing to point to
-            dim: self.dim.clone(),
-            strides: self.strides.clone(),
-        };
-        array
-    }
-
-}
-
-impl<'a, 'd,  A, D> $trt<&'a WgpuArray<'_, A, D>> for &'a WgpuArray<'d, A, D>
-where
-    A: bytemuck::Pod + std::fmt::Debug + Default,
-    D: Dimension,
-{
-    type Output = WgpuArray<'d, A, D>;
-    fn $mth(self, rhs: &'a WgpuArray<A,D>) -> Self::Output
-    {
-        let cs_module =
-            self.data
-                .wgpu_device
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!($shader)))
-                });
-        let storage_buffer = self.data.wgpu_device.create_storage_buffer(vec![A::default(); self.data.len].as_slice());
-        let compute_pipeline =
-            self
-                .data
-                .wgpu_device
-                .device
-                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: None,
-                    layout: None,
-                    module: &cs_module,
-                    entry_point: "main",
-                });
-        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
-        let bind_group = self
-            .data
-            .wgpu_device
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.data.storage_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: rhs.data.storage_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: storage_buffer.as_entire_binding(),
-                    },
-                ],
-            });
-        let mut encoder = self
-            .data
-            .wgpu_device
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        {
-            let mut cpass =
-                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-            cpass.set_pipeline(&compute_pipeline);
-            cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.insert_debug_marker($doc);
-            cpass.dispatch_workgroups(self.data.len as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
-        }
-
-
-        // Submits command encoder for processing
-        self.data.wgpu_device.queue.submit(Some(encoder.finish()));
-        let data: WgpuRepr<A> = WgpuRepr {
-            wgpu_device: self.data.wgpu_device,
-            storage_buffer,
-            len: self.data.len,
-            life: PhantomData
-        };
-        let array = WgpuArray {
-            data,
-            ptr: NonNull::dangling(), // Hack. There is nothing to point to
-            dim: self.dim.clone(),
-            strides: self.strides.clone(),
-        };
-        array
-    }
-
-}
-
-impl<'a, 'd,  A, D> $trt<&'a WgpuArray<'_, A, D>> for WgpuArray<'d, A, D>
-where
-    A: bytemuck::Pod + std::fmt::Debug + Default,
-    D: Dimension,
-{
-    type Output = WgpuArray<'d, A, D>;
-    fn $mth(self, rhs: &WgpuArray<A,D>) -> Self::Output
-    {
-        let cs_module =
-            self.data
-                .wgpu_device
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!($shader)))
-                });
-        let storage_buffer = self.data.wgpu_device.create_storage_buffer(vec![A::default(); self.data.len].as_slice());
-        let compute_pipeline =
-            self
-                .data
-                .wgpu_device
-                .device
-                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: None,
-                    layout: None,
-                    module: &cs_module,
-                    entry_point: "main",
-                });
-        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
-        let bind_group = self
-            .data
-            .wgpu_device
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.data.storage_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: rhs.data.storage_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: storage_buffer.as_entire_binding(),
-                    },
-                ],
-            });
-        let mut encoder = self
-            .data
-            .wgpu_device
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        {
-            let mut cpass =
-                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-            cpass.set_pipeline(&compute_pipeline);
-            cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.insert_debug_marker($doc);
-            cpass.dispatch_workgroups(self.data.len as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
-        }
-
-
-        // Submits command encoder for processing
-        self.data.wgpu_device.queue.submit(Some(encoder.finish()));
-        let data: WgpuRepr<A> = WgpuRepr {
-            wgpu_device: self.data.wgpu_device,
-            storage_buffer,
-            len: self.data.len,
-            life: PhantomData
-        };
-        let array = WgpuArray {
-            data,
-            ptr: NonNull::dangling(), // Hack. There is nothing to point to
-            dim: self.dim.clone(),
-            strides: self.strides.clone(),
+            dim: lhs_view.dim,
+            strides,
         };
         array
     }
@@ -277,6 +137,6 @@ where
 
 use std::ops::*;
 impl_binary_op!(Add, +, add, +=, "../wgsl-shaders/add.wgsl", "addition");
-impl_binary_op!(Sub, -, sub, -=, "../wgsl-shaders/sub.wgsl", "subtraction");
+// impl_binary_op!(Sub, -, sub, -=, "../wgsl-shaders/sub.wgsl", "subtraction");
 // impl_binary_op!(Mul, *, mul, *=, "../wgsl-shaders/mul.wgsl", "multiplication");
 // impl_binary_op!(Div, /, div, /=, "../wgsl-shaders/div.wgsl", "division");

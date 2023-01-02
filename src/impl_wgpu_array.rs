@@ -40,10 +40,7 @@ where
         // Awaits until `buffer_future` can be read from
         if let Some(Ok(())) = futures::executor::block_on(receiver.receive()) {
             let data = buffer_slice.get_mapped_range();
-            let result: Vec<A> = data
-                .chunks_exact(std::mem::size_of::<A>())
-                .map(|b| *bytemuck::from_bytes::<A>(b))
-                .collect();
+            let result: Vec<A> = bytemuck::cast_slice(&data).to_vec();
             
             drop(data);
             staging_buffer.unmap();

@@ -780,3 +780,24 @@ unsafe impl<A> RawData for WgpuRepr<'_, A> {
     
     private_impl! {}
 }
+
+unsafe impl<A: bytemuck::Pod + std::fmt::Debug> Data for WgpuRepr<'_, A> {
+    #[inline]
+    fn into_owned<D>(self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
+    where
+        A: Clone,
+        D: Dimension,
+    {
+        self_.into_cpu()
+    }
+
+    #[inline]
+    fn try_into_owned_nocopy<D>(
+        self_: ArrayBase<Self, D>,
+    ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
+    where
+        D: Dimension,
+    {
+        Err(self_)
+    }
+}
