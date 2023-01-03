@@ -77,10 +77,10 @@ where
     pub fn into_wgpu(self, wgpu_device: &WgpuDevice) -> WgpuArray<A, D> {
         let slice = self.data.as_slice();
 
-        let data: WgpuRepr<A> = WgpuRepr::new(slice, wgpu_device);
+        let (data, ptr): (WgpuRepr<A>, std::ptr::NonNull<A>) = WgpuRepr::new(slice, wgpu_device);
         ArrayBase {
             data,
-            ptr: std::ptr::NonNull::dangling(), // Hack. There is nothing to point to
+            ptr,
             dim: self.dim,
             strides: self.strides,
         }
@@ -94,7 +94,7 @@ where
 {
     pub fn into_wgpu(self, wgpu_device: &WgpuDevice) -> WgpuArray<A, D> {
         let buffer = WgpuDevice::ptr_to_buffer(self.ptr);
-        dbg!(WgpuDevice::ptr_to_offset(self.ptr));
+        // dbg!(WgpuDevice::ptr_to_offset(self.ptr));
         let data: WgpuRepr<A> = WgpuRepr::new_with_buffer(buffer, wgpu_device);
         ArrayBase {
             data,

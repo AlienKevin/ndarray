@@ -1515,14 +1515,14 @@ pub struct WgpuRepr<'a, A> {
 }
 
 impl<'a, A: bytemuck::Pod> WgpuRepr<'a, A> {
-    pub fn new(slice: &[A], wgpu_device: &'a WgpuDevice) -> Self {
-        let storage_buffer = wgpu_device.create_storage_buffer(slice);
-        WgpuRepr {
+    pub fn new(slice: &[A], wgpu_device: &'a WgpuDevice) -> (Self, std::ptr::NonNull<A>) {
+        let (storage_buffer, ptr) = wgpu_device.allocate_storage_buffer(slice);
+        (WgpuRepr {
             wgpu_device,
             storage_buffer,
             len: slice.len(),
             life: PhantomData,
-        }
+        }, ptr)
     }
 
     pub fn new_with_buffer(storage_buffer: std::sync::Arc<wgpu::Buffer>, wgpu_device: &'a WgpuDevice) -> Self {
@@ -1535,26 +1535,24 @@ impl<'a, A: bytemuck::Pod> WgpuRepr<'a, A> {
             life: PhantomData,
         }
     }
-}
 
-impl <'a, A: bytemuck::Pod> Clone for WgpuRepr<'a, A> {
-    fn clone(&self) -> Self {
+    fn clone(&self) -> (Self, std::ptr::NonNull<A>) {
         let slice_size = self.len * std::mem::size_of::<A>();
         let size = slice_size as u64;
 
-        let storage_buffer = self.wgpu_device.create_storage_buffer_sized::<A>(size);
+        let (storage_buffer, ptr) = self.wgpu_device.allocate_storage_buffer_sized::<A>(size);
         let mut encoder =
         self.wgpu_device.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         encoder.copy_buffer_to_buffer(&self.storage_buffer, 0, &storage_buffer, 0, size); 
 
         self.wgpu_device.queue.submit(Some(encoder.finish()));
-        WgpuRepr {
+        (WgpuRepr {
             wgpu_device: self.wgpu_device,
             storage_buffer,
             len: self.len,
             life: PhantomData
-        }
+        }, ptr)
     }
 }
 

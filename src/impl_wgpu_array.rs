@@ -79,9 +79,10 @@ where
     D: Dimension,
 {
     fn clone(&self) -> Self {
+        let (data, ptr) = self.data.clone();
         WgpuArray {
-            data: self.data.clone(),
-            ptr: self.ptr,
+            data,
+            ptr,
             dim: self.dim.clone(),
             strides: self.strides.clone(),
         }

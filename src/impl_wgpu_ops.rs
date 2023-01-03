@@ -61,7 +61,7 @@ where
         let dim = self.data.wgpu_device.create_storage_buffer(lhs_view.dim.slice());
         let lhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(lhs_view.strides.slice());
         let rhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(rhs_view.strides.slice());
-        let result_buffer = self.data.wgpu_device.create_storage_buffer(vec![A::default(); lhs_view.len()].as_slice());
+        let (result_buffer, result_buffer_ptr) = self.data.wgpu_device.allocate_storage_buffer(vec![A::default(); lhs_view.len()].as_slice());
         let compute_pipeline =
             self
                 .data
@@ -135,7 +135,7 @@ where
         let strides = lhs_view.dim.default_strides();
         let array = WgpuArray {
             data,
-            ptr: NonNull::dangling(), // Hack. There is nothing to point to
+            ptr: result_buffer_ptr,
             dim: lhs_view.dim,
             strides,
         };
