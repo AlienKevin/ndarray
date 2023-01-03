@@ -2,7 +2,7 @@ struct Array {
     data: array<f32>
 };
 
-@group(0) @binding(0) var<storage, read> shape: array<i32>;
+@group(0) @binding(0) var<storage, read> shape: array<u32>;
 @group(0) @binding(1) var<storage, read> lhs_strides: array<i32>;
 @group(0) @binding(2) var<storage, read> lhs: Array;
 @group(0) @binding(3) var<storage, read> rhs_strides: array<i32>;
@@ -14,18 +14,19 @@ struct Array {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let id = global_id.x;
     
-    var id_: i32 = i32(id);
+    var id_: u32 = id;
     var lhs_id: i32 = 0;
     var rhs_id: i32 = 0;
-    for (var i: i32 = $len - 1; i >= 0; i--) {
+    for (var i: i32 = $ndim; i >= 0; i--) {
         // See StackOverflow question for context: https://stackoverflow.com/q/46782444/6798201
         // For code see: https://github.com/stdlib-js/ndarray-base-ind2sub/blob/c759c6f6d53bf6ff63c8781fad57aa3def83c666/src/main.c#L107
-        let idx = id_ % shape[i];
+        let s = shape[i];
+        let idx = id_ % s;
         id_ -= idx;
-        id_ /= shape[i];
-        lhs_id += idx * lhs_strides[i];
-        rhs_id += idx * rhs_strides[i];
+        id_ /= s;
+        lhs_id += i32(idx) * lhs_strides[i];
+        rhs_id += i32(idx) * rhs_strides[i];
     }
-    
+
     result.data[id] = lhs.data[$lhs_offset + lhs_id] + rhs.data[$rhs_offset + rhs_id];
 }

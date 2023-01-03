@@ -7,6 +7,7 @@ use crate::DimMax;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
+use std::convert::TryFrom;
 
 macro_rules! impl_binary_op(
     ($trt:ident, $operator:tt, $mth:ident, $iop:tt, $shader:expr, $doc:expr) => (
@@ -35,8 +36,10 @@ where
         let (lhs_view, rhs_view) = self.broadcast_with(&rhs).unwrap();
         let lhs_offset = WgpuDevice::ptr_to_offset(lhs_view.ptr);
         let rhs_offset = WgpuDevice::ptr_to_offset(rhs_view.ptr);
-        dbg!(lhs_offset);
-        dbg!(rhs_offset);
+        dbg!(&(lhs_view.dim.ndim() - 1).to_string());
+        dbg!(lhs_offset.to_string());
+        dbg!(rhs_offset.to_string());
+        dbg!(lhs_view.dim.ndim());
 
         let cs_module =
             self.data
@@ -45,7 +48,7 @@ where
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
                     source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&include_str!($shader)
-                        .replace("$len", &lhs_view.dim.ndim().to_string())
+                        .replace("$ndim", &(lhs_view.dim.ndim() - 1).to_string())
                         .replace("$lhs_offset", &lhs_offset.to_string())
                         .replace("$rhs_offset", &rhs_offset.to_string())))
                 });
@@ -58,9 +61,9 @@ where
         dbg!(rhs_view.strides());
         dbg!(rhs_view.len());
 
-        let dim = self.data.wgpu_device.create_storage_buffer(lhs_view.dim.slice());
-        let lhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(lhs_view.strides.slice());
-        let rhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(rhs_view.strides.slice());
+        let dim = self.data.wgpu_device.create_storage_buffer(&lhs_view.dim.slice().iter().map(|s| u32::try_from(*s).unwrap()).collect::<Vec<u32>>()[..]);
+        let lhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(&lhs_view.strides().iter().map(|s| i32::try_from(*s).unwrap()).collect::<Vec<i32>>()[..]);
+        let rhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(&rhs_view.strides().iter().map(|s| i32::try_from(*s).unwrap()).collect::<Vec<i32>>()[..]);
         let (result_buffer, result_buffer_ptr) = self.data.wgpu_device.allocate_storage_buffer(vec![A::default(); lhs_view.len()].as_slice());
         let compute_pipeline =
             self

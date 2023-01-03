@@ -71,11 +71,11 @@ fn test_wgpu_3() {
                   [[ 7.,  8.,  9.],     //            \_ 2 submatrices
                   [10., 11., 12.]]]);  //            /
     //  3 columns ..../.../.../
-    dbg!(&a.as_ptr());
+    // dbg!(&a.as_ptr());
     let a_gpu = a.clone().into_wgpu(&dev);
-    dbg!(&a_gpu.dim());
-    dbg!(&a_gpu.strides());
-    dbg!(&a_gpu.as_ptr());
+    // dbg!(&a_gpu.dim());
+    // dbg!(&a_gpu.strides());
+    // dbg!(&a_gpu.as_ptr());
     assert_eq!(a_gpu.shape(), &[2, 2, 3]);
 
     // Let’s create a slice with
@@ -98,22 +98,24 @@ fn test_wgpu_3() {
     // - The last row in each submatrix: `-1..`
     // - Row elements in reverse order: `..;-1`
     let d = a.slice(s![.., -1.., ..;-1]);
-    dbg!(&d.dim());
-    dbg!(&d.strides());
-    dbg!(&d.as_ptr());
+    // dbg!(&d.dim());
+    // dbg!(&d.strides());
+    // dbg!(&d.as_ptr());
     let d_gpu = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
-    dbg!(&d_gpu.dim());
-    dbg!(&d_gpu.strides());
-    dbg!(d_gpu.as_ptr());
+    // dbg!(&d_gpu.dim());
+    // dbg!(&d_gpu.strides());
+    // dbg!(d_gpu.as_ptr());
     let e: Array<f32, _> = arr3(&[[[ 6.,  5.,  4.]],
         [[12., 11., 10.]]]);
-    dbg!(&d);
-    assert_eq!(d.clone(), e);
-    assert_eq!(d_gpu.clone().into_cpu(), e);
-    assert_eq!(d.shape(), &[2, 1, 3]);
+    // dbg!(&d);
+    // assert_eq!(d.clone(), e);
+    // assert_eq!(d_gpu.clone().into_cpu(), e);
+    // assert_eq!(d.shape(), &[2, 1, 3]);
 
-    dbg!(b_gpu.clone().into_cpu());
-    dbg!(d_gpu.clone().into_cpu());
+    // dbg!(b_gpu.get_data());
+    // dbg!(d_gpu.get_data());
+    // dbg!(b_gpu.clone().into_cpu());
+    // dbg!(d_gpu.clone().into_cpu());
     let f: Array<f32, _> = arr3(&[[[ 7., 7., 7.]], [[19., 19., 19.]]]);
     assert_eq!(&b + &d, f);
     assert_eq!((b_gpu + d_gpu).into_cpu(), f);
@@ -157,9 +159,10 @@ fn test_add() {
         let mut id_: isize = id as isize;
         let mut lhs_id: isize = 0;
         let mut rhs_id: isize = 0;
-        for i in (0..len - 1).rev() {
+        for i in (0..len).rev() {
             let s = shape[i] as isize;
             let idx = id_ % s;
+            // println!("{} % {} = {}", id_, s, id_ % s);
             id_ -= idx;
             id_ /= s;
             // TODO: handle negative strides
@@ -208,8 +211,8 @@ fn test_add() {
             [ 4.,  5.,  6.]],    // --         /
             [[ 7.,  8.,  9.],     //            \_ 2 submatrices
             [10., 11., 12.]]]);  //            /
-        let lhs = a.slice(s![.., 0..1, ..]).into_owned();
-        let lhs_array = Array_ { data: lhs.as_slice().unwrap() };
+        let lhs = a.slice(s![.., 0..1, ..]);
+        let lhs_array = Array_ { data: a.as_slice().unwrap() };
         let lhs_strides = lhs.strides();
         let lhs_offset = 0;
         dbg!(lhs_strides);
@@ -223,10 +226,46 @@ fn test_add() {
         let mut result = ArrayMut_ { data: &mut [0.0; 6] };
         let len = lhs.ndim();
         let shape = lhs.shape();
+        dbg!(&shape);
 
         for id in 0..6 {
             add(id, len, shape, lhs_offset, lhs_strides, &lhs_array, rhs_offset, rhs_strides, &rhs_array, &mut result);
         }
-        assert_eq!(result.data, &[7., 19., 7., 19., 7., 19.]);
+        assert_eq!(result.data, &[7.0, 7.0, 7.0, 19.0, 19.0, 19.0]);
+    }
+
+    {
+        std::env::set_var("RUST_BACKTRACE", "1");
+        env_logger::init();
+        let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
+
+        let a: Array<f32, _> = arr3(
+            &[[[ 1.,  2.,  3.],  // -- 2 rows  \_
+            [ 4.,  5.,  6.]],    // --         /
+            [[ 7.,  8.,  9.],     //            \_ 2 submatrices
+            [10., 11., 12.]]]);  //            /
+        let a_gpu = a.clone().into_wgpu(&dev);
+        
+        let lhs = a_gpu.slice(s![.., 0..1, ..]).into_wgpu(&dev);
+        let lhs_array = Array_ { data: a.as_slice().unwrap() };
+        let lhs_strides = lhs.strides();
+        let lhs_offset = 0;
+        dbg!(lhs_strides);
+        
+        let rhs = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
+        let rhs_array = Array_ { data: a.as_slice().unwrap() };
+        let rhs_strides = rhs.strides();
+        let rhs_offset = 5;
+        dbg!(rhs_strides);
+
+        let mut result = ArrayMut_ { data: &mut [0.0; 6] };
+        let len = lhs.ndim();
+        let shape = lhs.shape();
+        dbg!(&shape);
+
+        for id in 0..6 {
+            add(id, len, shape, lhs_offset, lhs_strides, &lhs_array, rhs_offset, rhs_strides, &rhs_array, &mut result);
+        }
+        assert_eq!(result.data, &[7.0, 7.0, 7.0, 19.0, 19.0, 19.0]);
     }
 }
