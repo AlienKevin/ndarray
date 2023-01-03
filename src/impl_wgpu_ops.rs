@@ -35,6 +35,8 @@ where
         let (lhs_view, rhs_view) = self.broadcast_with(&rhs).unwrap();
         let lhs_offset = WgpuDevice::ptr_to_offset(lhs_view.ptr);
         let rhs_offset = WgpuDevice::ptr_to_offset(rhs_view.ptr);
+        dbg!(lhs_offset);
+        dbg!(rhs_offset);
 
         let cs_module =
             self.data

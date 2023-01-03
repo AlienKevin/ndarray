@@ -18,6 +18,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var lhs_id: i32 = 0;
     var rhs_id: i32 = 0;
     for (var i: i32 = $len - 1; i >= 0; i--) {
+        // See StackOverflow question for context: https://stackoverflow.com/q/46782444/6798201
+        // For code see: https://github.com/stdlib-js/ndarray-base-ind2sub/blob/c759c6f6d53bf6ff63c8781fad57aa3def83c666/src/main.c#L107
         let idx = id_ % shape[i];
         id_ -= idx;
         id_ /= shape[i];
