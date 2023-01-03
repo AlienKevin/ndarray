@@ -1,7 +1,9 @@
 use ndarray::Array;
 use ndarray::WgpuDevice;
+use ndarray::arr3;
 use ndarray::array;
 use ndarray::Ix2;
+use ndarray::s;
 
 #[test]
 fn test_wgpu() {
@@ -54,6 +56,63 @@ fn test_wgpu_2() {
     // dbg!(&b_cpu.clone().iter().collect::<Vec<_>>());
     assert_eq!(a_t_cpu + b_t_cpu, c_cpu);
     assert_eq!((a_t_gpu + b_t_gpu).into_cpu(), c_cpu);
+}
+
+#[test]
+fn test_wgpu_3() {
+    // this method needs to be inside main() method
+    std::env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
+    let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
+
+    let a: Array<f32, _> = arr3(
+                  &[[[ 1.,  2.,  3.],  // -- 2 rows  \_
+                  [ 4.,  5.,  6.]],    // --         /
+                  [[ 7.,  8.,  9.],     //            \_ 2 submatrices
+                  [10., 11., 12.]]]);  //            /
+    //  3 columns ..../.../.../
+    dbg!(&a.as_ptr());
+    let a_gpu = a.clone().into_wgpu(&dev);
+    dbg!(&a_gpu.dim());
+    dbg!(&a_gpu.strides());
+    dbg!(&a_gpu.as_ptr());
+    assert_eq!(a_gpu.shape(), &[2, 2, 3]);
+
+    // Let’s create a slice with
+    //
+    // - Both of the submatrices of the greatest dimension: `..`
+    // - Only the first row in each submatrix: `0..1`
+    // - Every element in each row: `..`
+
+    let b = a.slice(s![.., 0..1, ..]);
+    let b_gpu = b.clone().into_owned().into_wgpu(&dev);
+    let c: Array<f32, _> = arr3(&[[[ 1.,  2.,  3.]],
+        [[ 7.,  8.,  9.]]]);
+    assert_eq!(b_gpu.clone().into_cpu(), c);
+    assert_eq!(b_gpu.shape(), &[2, 1, 3]);
+
+    // Let’s create a slice with
+    //
+    // - Both submatrices of the greatest dimension: `..`
+    // - The last row in each submatrix: `-1..`
+    // - Row elements in reverse order: `..;-1`
+    let d = a.slice(s![.., -1.., ..;-1]);
+    dbg!(&d.dim());
+    dbg!(&d.strides());
+    dbg!(&d.as_ptr());
+    let d_2 = a_gpu.slice(s![.., -1.., ..;-1]);
+    let d_gpu = d_2.into_wgpu();
+    dbg!(&d_gpu.data);
+    dbg!(&d_gpu.dim());
+    dbg!(&d_gpu.strides());
+    dbg!(d_gpu.as_ptr());
+    let e: Array<f32, _> = arr3(&[[[ 6.,  5.,  4.]],
+        [[12., 11., 10.]]]);
+    assert_eq!(d_gpu.clone().into_cpu(), e);
+    assert_eq!(d.shape(), &[2, 1, 3]);
+
+    let f: Array<f32, _> = arr3(&[[[ 7., 7., 7.]], [[19., 19., 19.]]]);
+    assert_eq!((b_gpu + d_gpu).into_cpu(), f);
 }
 
 #[test]
