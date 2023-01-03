@@ -12,7 +12,7 @@ where
     A: bytemuck::Pod + std::fmt::Debug,
     D: Dimension,
 {
-    pub fn into_cpu(self) -> Array<A, D> {
+    pub fn get_data(&self) -> Vec<A> {
         // Get number of bytes
         let slice_size = self.data.len * std::mem::size_of::<A>();
         let size = slice_size as u64;
@@ -42,29 +42,32 @@ where
         // Awaits until `buffer_future` can be read from
         if let Some(Ok(())) = futures::executor::block_on(receiver.receive()) {
             let data = buffer_slice.get_mapped_range();
-            let mut result: Vec<A> = bytemuck::cast_slice(&data).to_vec();
-            
+            let result: Vec<A> = bytemuck::cast_slice(&data).to_vec();            
             drop(data);
             staging_buffer.unmap();
-
-            let offset = WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap();
-            let ptr = unsafe { crate::extension::nonnull::nonnull_from_vec_data(&mut result).add(offset) };
-            let array = unsafe { crate::ArrayBase::from_data_ptr(crate::DataOwned::new(result), ptr).with_strides_dim(self.strides, self.dim) };
-            // let mut array = unsafe {
-            //     Array::<A, D>::from_shape_vec_unchecked(
-            //         StrideShape {
-            //             dim: self.dim,
-            //             strides: shape_builder::Strides::Custom(self.strides)
-            //         }, result)
-            // };
-            // dbg!(array.ptr);
-            // array.ptr = unsafe { array.ptr.add(WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap()) };
-            // array.ptr = unsafe { array.ptr.add(4) };
-            // dbg!(array.ptr);
-            return array;
+            return result;
         } else {
             panic!("Failed to map GPU buffer to CPU");
         }
+    }
+
+    pub fn into_cpu(self) -> Array<A, D> {
+        let mut result = self.get_data();
+        let offset = WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap();
+        let ptr = unsafe { crate::extension::nonnull::nonnull_from_vec_data(&mut result).add(offset) };
+        let array = unsafe { crate::ArrayBase::from_data_ptr(crate::DataOwned::new(result), ptr).with_strides_dim(self.strides, self.dim) };
+        // let mut array = unsafe {
+        //     Array::<A, D>::from_shape_vec_unchecked(
+        //         StrideShape {
+        //             dim: self.dim,
+        //             strides: shape_builder::Strides::Custom(self.strides)
+        //         }, result)
+        // };
+        // dbg!(array.ptr);
+        // array.ptr = unsafe { array.ptr.add(WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap()) };
+        // array.ptr = unsafe { array.ptr.add(4) };
+        // dbg!(array.ptr);
+        return array;
     }
 
     pub fn get_wgpu_device(&'d self) -> &'d WgpuDevice {
