@@ -100,18 +100,19 @@ fn test_wgpu_3() {
     dbg!(&d.dim());
     dbg!(&d.strides());
     dbg!(&d.as_ptr());
-    let d_2 = a_gpu.slice(s![.., -1.., ..;-1]);
-    let d_gpu = d_2.into_wgpu();
-    dbg!(&d_gpu.data);
+    let d_gpu = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
     dbg!(&d_gpu.dim());
     dbg!(&d_gpu.strides());
     dbg!(d_gpu.as_ptr());
     let e: Array<f32, _> = arr3(&[[[ 6.,  5.,  4.]],
         [[12., 11., 10.]]]);
+    dbg!(&d);
+    assert_eq!(d.clone(), e);
     assert_eq!(d_gpu.clone().into_cpu(), e);
     assert_eq!(d.shape(), &[2, 1, 3]);
 
     let f: Array<f32, _> = arr3(&[[[ 7., 7., 7.]], [[19., 19., 19.]]]);
+    assert_eq!(&b + &d, f);
     assert_eq!((b_gpu + d_gpu).into_cpu(), f);
 }
 

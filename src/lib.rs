@@ -1509,7 +1509,7 @@ impl<'a, A> CowRepr<'a, A> {
 /// [`WgpuArray`](type.WgpuArray.html) for the array type!*
 pub struct WgpuRepr<'a, A> {
     wgpu_device: &'a WgpuDevice,
-    storage_buffer: wgpu::Buffer,
+    storage_buffer: Arc<wgpu::Buffer>,
     len: usize,
     life: PhantomData<A>,
 }
@@ -1524,14 +1524,25 @@ impl<'a, A: bytemuck::Pod> WgpuRepr<'a, A> {
             life: PhantomData,
         }
     }
+
+    pub fn new_with_buffer(storage_buffer: std::sync::Arc<wgpu::Buffer>, wgpu_device: &'a WgpuDevice) -> Self {
+        // TODO(wgpu): verify len is calculated correctly
+        let len = storage_buffer.size() as usize / std::mem::size_of::<A>();
+        WgpuRepr {
+            wgpu_device,
+            storage_buffer,
+            len,
+            life: PhantomData,
+        }
+    }
 }
 
-impl <'a, A> Clone for WgpuRepr<'a, A> {
+impl <'a, A: bytemuck::Pod> Clone for WgpuRepr<'a, A> {
     fn clone(&self) -> Self {
         let slice_size = self.len * std::mem::size_of::<A>();
         let size = slice_size as u64;
 
-        let storage_buffer = self.wgpu_device.create_storage_buffer_sized(size);
+        let storage_buffer = self.wgpu_device.create_storage_buffer_sized::<A>(size);
         let mut encoder =
         self.wgpu_device.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 

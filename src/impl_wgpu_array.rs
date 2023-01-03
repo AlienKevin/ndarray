@@ -4,6 +4,8 @@ use crate::StrideShape;
 use crate::WgpuArray;
 use crate::WgpuDevice;
 use crate::shape_builder;
+use rawpointer::PointerExt;
+use std::convert::TryInto;
 
 impl<'d, A, D> WgpuArray<'d, A, D>
 where
@@ -40,16 +42,25 @@ where
         // Awaits until `buffer_future` can be read from
         if let Some(Ok(())) = futures::executor::block_on(receiver.receive()) {
             let data = buffer_slice.get_mapped_range();
-            let result: Vec<A> = bytemuck::cast_slice(&data).to_vec();
+            let mut result: Vec<A> = bytemuck::cast_slice(&data).to_vec();
             
             drop(data);
             staging_buffer.unmap();
-            
-            let array = unsafe { Array::<A, D>::from_shape_vec_unchecked(
-                StrideShape {
-                    dim: self.dim,
-                    strides: shape_builder::Strides::Custom(self.strides)
-                }, result) };
+
+            let offset = WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap();
+            let ptr = unsafe { crate::extension::nonnull::nonnull_from_vec_data(&mut result).add(offset) };
+            let array = unsafe { crate::ArrayBase::from_data_ptr(crate::DataOwned::new(result), ptr).with_strides_dim(self.strides, self.dim) };
+            // let mut array = unsafe {
+            //     Array::<A, D>::from_shape_vec_unchecked(
+            //         StrideShape {
+            //             dim: self.dim,
+            //             strides: shape_builder::Strides::Custom(self.strides)
+            //         }, result)
+            // };
+            // dbg!(array.ptr);
+            // array.ptr = unsafe { array.ptr.add(WgpuDevice::ptr_to_offset(self.ptr).try_into().unwrap()) };
+            // array.ptr = unsafe { array.ptr.add(4) };
+            // dbg!(array.ptr);
             return array;
         } else {
             panic!("Failed to map GPU buffer to CPU");

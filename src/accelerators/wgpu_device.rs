@@ -1,4 +1,11 @@
 use wgpu::util::DeviceExt;
+use parking_lot::Mutex;
+use core::ptr::NonNull;
+use std::sync::Arc;
+
+lazy_static::lazy_static! {
+    static ref WGPU_BUFFERS: Mutex<Vec<((usize, usize), Arc<wgpu::Buffer>)>> = Mutex::new(vec![]);
+}
 
 pub struct WgpuDevice {
     pub device: wgpu::Device,
@@ -33,7 +40,42 @@ impl WgpuDevice {
         })
     }
 
-    pub fn create_storage_buffer<A: bytemuck::Pod>(&self, slice: &[A]) -> wgpu::Buffer {
+    pub fn ptr_to_buffer<A>(ptr: NonNull<A>) -> Arc<wgpu::Buffer> {
+        let ptr = ptr.as_ptr() as usize;
+        for ((start, end), buffer) in &*WGPU_BUFFERS.lock() {
+            if ptr >= *start && ptr < *end {
+                return buffer.clone();
+            }
+        }
+        panic!("Invalid ptr to wgpu buffer");
+    }
+
+    pub fn ptr_to_offset<A>(ptr: NonNull<A>) -> usize {
+        let ptr = ptr.as_ptr() as usize;
+        for ((start, end), _buffer) in &*WGPU_BUFFERS.lock() {
+            if ptr >= *start && ptr < *end {
+                return (ptr - *start) / std::mem::size_of::<A>();
+            }
+        }
+        panic!("Invalid ptr to wgpu buffer");
+    }
+    
+    fn allocate_buffer<A: Sized>(buffer: wgpu::Buffer) -> Arc<wgpu::Buffer> {
+        let buffers = &mut *WGPU_BUFFERS.lock();
+        let arc_buffer = Arc::new(buffer);
+        if buffers.is_empty() {
+            let start = std::mem::align_of::<A>();
+            let end = start + arc_buffer.size() as usize;
+            buffers.push(((start, end), arc_buffer.clone()));
+        } else {
+            let last_buffer = &buffers[buffers.len() - 1];
+            let (_, last_buffer_end) = last_buffer.0;
+            buffers.push(((last_buffer_end, last_buffer_end + arc_buffer.size() as usize), arc_buffer.clone()));
+        }
+        arc_buffer
+    }
+
+    pub fn create_storage_buffer<A: bytemuck::Pod>(&self, slice: &[A]) -> Arc<wgpu::Buffer> {
         let storage_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -43,11 +85,11 @@ impl WgpuDevice {
                     | wgpu::BufferUsages::COPY_DST
                     | wgpu::BufferUsages::COPY_SRC,
             });
-
-        storage_buffer
+        
+        Self::allocate_buffer::<A>(storage_buffer)
     }
 
-    pub fn create_storage_buffer_sized(&self, size: u64) -> wgpu::Buffer {
+    pub fn create_storage_buffer_sized<A: bytemuck::Pod>(&self, size: u64) -> Arc<wgpu::Buffer> {
         let storage_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Storage Buffer"),
             size,
@@ -57,7 +99,7 @@ impl WgpuDevice {
             mapped_at_creation: false,
         });
 
-        storage_buffer
+        Self::allocate_buffer::<A>(storage_buffer)
     }
 
     pub fn create_staging_buffer(&self, size: u64) -> wgpu::Buffer {

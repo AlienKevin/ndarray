@@ -87,6 +87,24 @@ where
     }
 }
 
+impl<'a, A, D> ArrayView<'a, A, D>
+where
+    A: bytemuck::Pod + std::fmt::Debug,
+    D: Dimension,
+{
+    pub fn into_wgpu(self, wgpu_device: &WgpuDevice) -> WgpuArray<A, D> {
+        let buffer = WgpuDevice::ptr_to_buffer(self.ptr);
+        dbg!(WgpuDevice::ptr_to_offset(self.ptr));
+        let data: WgpuRepr<A> = WgpuRepr::new_with_buffer(buffer, wgpu_device);
+        ArrayBase {
+            data,
+            ptr: self.ptr,
+            dim: self.dim,
+            strides: self.strides,
+        }
+    }
+}
+
 /// Methods specific to `Array2`.
 ///
 /// ***See also all methods for [`ArrayBase`]***
