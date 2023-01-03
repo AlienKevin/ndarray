@@ -79,7 +79,8 @@ where
     D: Dimension,
 {
     fn clone(&self) -> Self {
-        let (data, ptr) = self.data.clone();
+        let (data, mut ptr) = self.data.clone();
+        ptr = unsafe { ptr.add(WgpuDevice::ptr_to_offset(self.ptr)) };
         WgpuArray {
             data,
             ptr,
