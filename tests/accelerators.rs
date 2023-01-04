@@ -2,6 +2,7 @@ use ndarray::Array;
 use ndarray::WgpuDevice;
 use ndarray::arr3;
 use ndarray::s;
+use ndarray::Zip;
 use approx::assert_abs_diff_eq;
 
 #[cfg(test)]
@@ -198,6 +199,16 @@ fn test_wgpu_binary_scalar() {
     assert_abs_diff_eq!((b_gpu.clone() / pi).into_cpu(), &c / pi, epsilon = 1e-6);
     assert_eq!(&d / pi, &e / pi);
     assert_abs_diff_eq!((d_gpu.clone() / pi).into_cpu(), &e / pi, epsilon = 1e-6);
+    // power
+    assert_eq!(Zip::from(&b).map_collect(|elem| elem.powf(pi)), Zip::from(&c).map_collect(|elem| elem.powf(pi)));
+    assert_abs_diff_eq!((b_gpu.clone().pow(pi)).into_cpu(), Zip::from(&c).map_collect(|elem| elem.powf(pi)), epsilon = 1e-3);
+    assert_eq!(Zip::from(&d).map_collect(|elem| elem.powf(pi)), Zip::from(&e).map_collect(|elem| elem.powf(pi)));
+    assert_abs_diff_eq!((d_gpu.clone().pow(pi)).into_cpu(), Zip::from(&e).map_collect(|elem| elem.powf(pi)), epsilon = 1e-3);
+
+    assert_eq!(Zip::from(&b).map_collect(|elem| elem.powf(-pi)), Zip::from(&c).map_collect(|elem| elem.powf(-pi)));
+    assert_abs_diff_eq!((b_gpu.clone().pow(-pi)).into_cpu(), Zip::from(&c).map_collect(|elem| elem.powf(-pi)), epsilon = 1e-3);
+    assert_eq!(Zip::from(&d).map_collect(|elem| elem.powf(-pi)), Zip::from(&e).map_collect(|elem| elem.powf(-pi)));
+    assert_abs_diff_eq!((d_gpu.clone().pow(-pi)).into_cpu(), Zip::from(&e).map_collect(|elem| elem.powf(-pi)), epsilon = 1e-3);
 }
 
 #[test]
