@@ -5,9 +5,15 @@ use ndarray::array;
 use ndarray::Ix2;
 use ndarray::s;
 
+#[cfg(test)]
+#[ctor::ctor]
+fn init() {
+    std::env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
+}
+
 #[test]
 fn test_wgpu() {
-    env_logger::init();
     let d = futures::executor::block_on(WgpuDevice::new()).unwrap();
     let a_cpu: Array<f32, _> = Array::ones((5, 5)) * 2.;
     let b_cpu: Array<f32, _> = Array::ones((5, 5)) * 3.;
@@ -29,7 +35,6 @@ fn test_wgpu() {
 
 #[test]
 fn test_wgpu_2() {
-    env_logger::init();
     let d = futures::executor::block_on(WgpuDevice::new()).unwrap();
     let a_cpu: Array<f32, _> = Array::range(0., 10., 1.0).into_shape((2, 5)).unwrap();
 
@@ -60,9 +65,6 @@ fn test_wgpu_2() {
 
 #[test]
 fn test_wgpu_3() {
-    // this method needs to be inside main() method
-    std::env::set_var("RUST_BACKTRACE", "1");
-    env_logger::init();
     let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
 
     let a: Array<f32, _> = arr3(
@@ -235,8 +237,6 @@ fn test_add() {
     }
 
     {
-        std::env::set_var("RUST_BACKTRACE", "1");
-        env_logger::init();
         let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
 
         let a: Array<f32, _> = arr3(
