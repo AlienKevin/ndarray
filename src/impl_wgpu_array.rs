@@ -82,8 +82,13 @@ where
     D: Dimension,
 {
     fn clone(&self) -> Self {
-        let (data, mut ptr) = self.data.clone();
-        ptr = unsafe { ptr.add(WgpuDevice::ptr_to_offset(self.ptr)) };
+        // Below shows how to do a deep clone
+        // let (data, mut ptr) = self.data.deep_clone();
+        // ptr = unsafe { ptr.add(WgpuDevice::ptr_to_offset(self.ptr)) };
+        // But we don't need a deep clone because device buffers are never modified
+        // all kernel operations return a new buffer
+        let data = self.data.clone();
+        let ptr = self.ptr;
         WgpuArray {
             data,
             ptr,

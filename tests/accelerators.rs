@@ -250,18 +250,18 @@ fn test_add() {
         let lhs_array = Array_ { data: a.as_slice().unwrap() };
         let lhs_strides = lhs.strides();
         let lhs_offset = 0;
-        dbg!(lhs_strides);
+        // dbg!(lhs_strides);
         
         let rhs = a.slice(s![.., -1.., ..;-1]);
         let rhs_array = Array_ { data: a.as_slice().unwrap() };
         let rhs_strides = rhs.strides();
         let rhs_offset = 5;
-        dbg!(rhs_strides);
+        // dbg!(rhs_strides);
 
         let mut result = ArrayMut_ { data: &mut [0.0; 6] };
         let len = lhs.ndim();
         let shape = lhs.shape();
-        dbg!(&shape);
+        // dbg!(&shape);
 
         for id in 0..6 {
             add(id, len, shape, lhs_offset, lhs_strides, &lhs_array, rhs_offset, rhs_strides, &rhs_array, &mut result);
@@ -283,18 +283,18 @@ fn test_add() {
         let lhs_array = Array_ { data: a.as_slice().unwrap() };
         let lhs_strides = lhs.strides();
         let lhs_offset = 0;
-        dbg!(lhs_strides);
+        // dbg!(lhs_strides);
         
         let rhs = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
         let rhs_array = Array_ { data: a.as_slice().unwrap() };
         let rhs_strides = rhs.strides();
         let rhs_offset = 5;
-        dbg!(rhs_strides);
+        // dbg!(rhs_strides);
 
         let mut result = ArrayMut_ { data: &mut [0.0; 6] };
         let len = lhs.ndim();
         let shape = lhs.shape();
-        dbg!(&shape);
+        // dbg!(&shape);
 
         for id in 0..6 {
             add(id, len, shape, lhs_offset, lhs_strides, &lhs_array, rhs_offset, rhs_strides, &rhs_array, &mut result);

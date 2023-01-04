@@ -1536,7 +1536,16 @@ impl<'a, A: bytemuck::Pod> WgpuRepr<'a, A> {
         }
     }
 
-    fn clone(&self) -> (Self, std::ptr::NonNull<A>) {
+    fn clone(&self) -> Self {
+        WgpuRepr {
+            wgpu_device: self.wgpu_device,
+            storage_buffer: self.storage_buffer.clone(),
+            len: self.len,
+            life: PhantomData
+        }
+    }
+
+    fn deep_clone(&self) -> (Self, std::ptr::NonNull<A>) {
         let slice_size = self.len * std::mem::size_of::<A>();
         let size = slice_size as u64;
 

@@ -35,10 +35,6 @@ where
         let (lhs_view, rhs_view) = self.broadcast_with(&rhs).unwrap();
         let lhs_offset = WgpuDevice::ptr_to_offset(lhs_view.ptr);
         let rhs_offset = WgpuDevice::ptr_to_offset(rhs_view.ptr);
-        dbg!(&(lhs_view.dim.ndim() - 1).to_string());
-        dbg!(lhs_offset.to_string());
-        dbg!(rhs_offset.to_string());
-        dbg!(lhs_view.dim.ndim());
 
         let cs_module =
             self.data
@@ -52,14 +48,6 @@ where
                         .replace("$lhs_offset", &lhs_offset.to_string())
                         .replace("$rhs_offset", &rhs_offset.to_string())))
                 });
-        
-        dbg!(lhs_view.dim());
-        dbg!(lhs_view.strides());
-        dbg!(lhs_view.len());
-
-        dbg!(rhs_view.dim());
-        dbg!(rhs_view.strides());
-        dbg!(rhs_view.len());
 
         let dim = self.data.wgpu_device.create_storage_buffer(&lhs_view.dim.slice().iter().map(|s| u32::try_from(*s).unwrap()).collect::<Vec<u32>>()[..]);
         let lhs_strides_buffer = self.data.wgpu_device.create_storage_buffer(&lhs_view.strides().iter().map(|s| i32::try_from(*s).unwrap()).collect::<Vec<i32>>()[..]);
