@@ -6,11 +6,10 @@ use crate::DimMax;
 
 use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::ptr::NonNull;
 use std::convert::TryFrom;
 
 macro_rules! impl_binary_op(
-    ($trt:ident, $operator:tt, $mth:ident, $iop:tt, $shader:expr, $doc:expr) => (
+    ($trt:ident, $operator:literal, $mth:ident, $doc:expr) => (
 
 impl<'d, A, D> $trt<WgpuArray<'d, A, D>> for WgpuArray<'d, A, D>
 where
@@ -47,7 +46,8 @@ where
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&include_str!($shader)
+                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&include_str!("../wgsl-shaders/binary_elementwise.wgsl")
+                        .replace("$op", $operator)
                         .replace("$ndim", &(lhs_view.dim.ndim() - 1).to_string())
                         .replace("$lhs_offset", &lhs_offset.to_string())
                         .replace("$rhs_offset", &rhs_offset.to_string())))
@@ -147,7 +147,7 @@ where
 }););
 
 use std::ops::*;
-impl_binary_op!(Add, +, add, +=, "../wgsl-shaders/add.wgsl", "addition");
-// impl_binary_op!(Sub, -, sub, -=, "../wgsl-shaders/sub.wgsl", "subtraction");
-// impl_binary_op!(Mul, *, mul, *=, "../wgsl-shaders/mul.wgsl", "multiplication");
-// impl_binary_op!(Div, /, div, /=, "../wgsl-shaders/div.wgsl", "division");
+impl_binary_op!(Add, "+", add, "addition");
+impl_binary_op!(Sub, "-", sub, "subtraction");
+impl_binary_op!(Mul, "*", mul, "multiplication");
+impl_binary_op!(Div, "/", div, "division");

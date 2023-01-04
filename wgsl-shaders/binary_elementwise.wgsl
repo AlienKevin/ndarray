@@ -28,5 +28,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         rhs_id += i32(idx) * rhs_strides[i];
     }
 
-    result.data[id] = lhs.data[$lhs_offset + lhs_id] + rhs.data[$rhs_offset + rhs_id];
+    result.data[id] = lhs.data[$lhs_offset + lhs_id] $op rhs.data[$rhs_offset + rhs_id];
 }

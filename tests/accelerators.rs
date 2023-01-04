@@ -1,9 +1,8 @@
 use ndarray::Array;
 use ndarray::WgpuDevice;
 use ndarray::arr3;
-use ndarray::array;
-use ndarray::Ix2;
 use ndarray::s;
+use approx::assert_abs_diff_eq;
 
 #[cfg(test)]
 #[ctor::ctor]
@@ -13,7 +12,7 @@ fn init() {
 }
 
 #[test]
-fn test_wgpu() {
+fn test_wgpu_add_1() {
     let d = futures::executor::block_on(WgpuDevice::new()).unwrap();
     let a_cpu: Array<f32, _> = Array::ones((5, 5)) * 2.;
     let b_cpu: Array<f32, _> = Array::ones((5, 5)) * 3.;
@@ -34,7 +33,7 @@ fn test_wgpu() {
 }
 
 #[test]
-fn test_wgpu_2() {
+fn test_wgpu_add_2() {
     let d = futures::executor::block_on(WgpuDevice::new()).unwrap();
     let a_cpu: Array<f32, _> = Array::range(0., 10., 1.0).into_shape((2, 5)).unwrap();
 
@@ -64,7 +63,7 @@ fn test_wgpu_2() {
 }
 
 #[test]
-fn test_wgpu_3() {
+fn test_wgpu_add_3() {
     let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
 
     let a: Array<f32, _> = arr3(
@@ -121,6 +120,40 @@ fn test_wgpu_3() {
     let f: Array<f32, _> = arr3(&[[[ 7., 7., 7.]], [[19., 19., 19.]]]);
     assert_eq!(&b + &d, f);
     assert_eq!((b_gpu + d_gpu).into_cpu(), f);
+}
+
+#[test]
+#[cfg(feature = "approx")]
+fn test_wgpu_binary_elementwise() {
+    let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
+
+    let a: Array<f32, _> = arr3(
+                  &[[[ 1.,  2.,  3.],  // -- 2 rows  \_
+                  [ 4.,  5.,  6.]],    // --         /
+                  [[ 7.,  8.,  9.],     //            \_ 2 submatrices
+                  [10., 11., 12.]]]);  //            /
+    let a_gpu = a.clone().into_wgpu(&dev);
+    let b = a.slice(s![.., 0..1, ..]);
+    let b_gpu = a_gpu.slice(s![.., 0..1, ..]).into_wgpu(&dev);
+    let c: Array<f32, _> = arr3(&[[[ 1.,  2.,  3.]],
+            [[ 7.,  8.,  9.]]]);
+    let d = a.slice(s![.., -1.., ..;-1]);
+    let d_gpu = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
+    let e: Array<f32, _> = arr3(&[[[ 6.,  5.,  4.]],
+        [[12., 11., 10.]]]);
+
+    // add
+    assert_eq!(&b + &d, &c + &e);
+    assert_eq!((b_gpu.clone() + d_gpu.clone()).into_cpu(), &c + &e);
+    // subtract
+    assert_eq!(&b - &d, &c - &e);
+    assert_eq!((b_gpu.clone() - d_gpu.clone()).into_cpu(), &c - &e);
+    // multiply
+    assert_eq!(&b * &d, &c * &e);
+    assert_eq!((b_gpu.clone() * d_gpu.clone()).into_cpu(), &c * &e);
+    // divide
+    assert_eq!(&b / &d, &c / &e);
+    assert_abs_diff_eq!((b_gpu.clone() / d_gpu.clone()).into_cpu(), &c / &e);
 }
 
 #[test]
