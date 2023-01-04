@@ -157,6 +157,50 @@ fn test_wgpu_binary_elementwise() {
 }
 
 #[test]
+#[cfg(feature = "approx")]
+fn test_wgpu_binary_scalar() {
+    let dev = futures::executor::block_on(WgpuDevice::new()).unwrap();
+
+    let a: Array<f32, _> = arr3(
+                  &[[[ 1.,  2.,  3.],  // -- 2 rows  \_
+                  [ 4.,  5.,  6.]],    // --         /
+                  [[ 7.,  8.,  9.],     //            \_ 2 submatrices
+                  [10., 11., 12.]]]);  //            /
+    let a_gpu = a.clone().into_wgpu(&dev);
+    let b = a.slice(s![.., 0..1, ..]);
+    let b_gpu = a_gpu.slice(s![.., 0..1, ..]).into_wgpu(&dev);
+    let c: Array<f32, _> = arr3(&[[[ 1.,  2.,  3.]],
+            [[ 7.,  8.,  9.]]]);
+    let d = a.slice(s![.., -1.., ..;-1]);
+    let d_gpu = a_gpu.slice(s![.., -1.., ..;-1]).into_wgpu(&dev);
+    let e: Array<f32, _> = arr3(&[[[ 6.,  5.,  4.]],
+        [[12., 11., 10.]]]);
+
+    let pi: f32 = std::f64::consts::PI as f32;
+
+    // add
+    assert_eq!(&b + pi, &c + pi);
+    assert_eq!((b_gpu.clone() + pi).into_cpu(), &c + pi);
+    assert_eq!(&d + pi, &e + pi);
+    assert_eq!((d_gpu.clone() + pi).into_cpu(), &e + pi);
+    // subtract
+    assert_eq!(&b - pi, &c - pi);
+    assert_eq!((b_gpu.clone() - pi).into_cpu(), &c - pi);
+    assert_eq!(&d - pi, &e - pi);
+    assert_eq!((d_gpu.clone() - pi).into_cpu(), &e - pi);
+    // multiply
+    assert_eq!(&b * pi, &c * pi);
+    assert_eq!((b_gpu.clone() * pi).into_cpu(), &c * pi);
+    assert_eq!(&d * pi, &e * pi);
+    assert_eq!((d_gpu.clone() * pi).into_cpu(), &e * pi);
+    // divide
+    assert_eq!(&b / pi, &c / pi);
+    assert_abs_diff_eq!((b_gpu.clone() / pi).into_cpu(), &c / pi, epsilon = 1e-6);
+    assert_eq!(&d / pi, &e / pi);
+    assert_abs_diff_eq!((d_gpu.clone() / pi).into_cpu(), &e / pi, epsilon = 1e-6);
+}
+
+#[test]
 fn test_ind2sub() {
     fn ind2sub(id_: u32, shape: &[i32], indices: &mut Vec<i32>) {
         let mut id: i32 = id_ as i32;
